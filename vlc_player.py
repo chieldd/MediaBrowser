@@ -6,6 +6,7 @@ import subprocess
 from PyQt5 import QtWidgets, QtGui, QtCore
 from PyQt5.QtMultimedia import QMediaPlayer, QMediaContent, QMediaService
 from PyQt5.QtMultimediaWidgets import QVideoWidget
+from PyQt5.QtSvg import QSvgWidget
 import requests
 
 CONFIG_PATH = os.path.join(os.getcwd(), 'video_config.json')
@@ -356,6 +357,10 @@ class MainWindow(QtWidgets.QWidget):
         self.back_button.show()
 
     def back_to_grid(self):
+        if hasattr(self, 'player_widget') and self.player_widget:
+            self.player_widget.media_player.stop()
+            self.player_widget.deleteLater()
+            self.player_widget = None
         self.stacked.setCurrentWidget(self.scroll_area)
         self.back_button.hide()
 
@@ -449,16 +454,10 @@ class MediaPlayer(QtWidgets.QWidget):
 
         self.panel_layout.addWidget(player_container, stretch=1)
 
-        self.play_pause_button = QtWidgets.QPushButton("▶")
-        self.play_pause_button.setStyleSheet("""
-            QPushButton {
-                font-size: 3em;
-                background-color: transparent;
-                border: none;
-                color: #fff;
-                padding: 0px 15px;
-            }
-        """)
+        self.play_pause_button = QtWidgets.QPushButton()
+        self.play_pause_button.setIconSize(QtCore.QSize(32, 32))
+        self.play_pause_button.setStyleSheet("background: transparent; border: none;")
+        self.play_pause_button.setIcon(QtGui.QIcon("icons/play.svg"))
         self.play_pause_button.clicked.connect(self.toggle_playback)
         self.controls_layout.addWidget(self.play_pause_button)
 
@@ -486,16 +485,10 @@ class MediaPlayer(QtWidgets.QWidget):
         self.seek_slider.sliderReleased.connect(self.end_seek)
         self.controls_layout.addWidget(self.seek_slider)
 
-        self.fullscreen_button = QtWidgets.QPushButton("⤢")
-        self.fullscreen_button.setStyleSheet("""
-            QPushButton {
-                font-size: 2.5em;
-                background-color: transparent;
-                border: none;
-                color: #fff;
-                padding: 0px 10px;
-            }
-        """)
+        self.fullscreen_button = QtWidgets.QPushButton()
+        self.fullscreen_button.setIconSize(QtCore.QSize(32, 32))
+        self.fullscreen_button.setStyleSheet("background: transparent; border: none;")
+        self.fullscreen_button.setIcon(QtGui.QIcon("icons/fullscreen.svg"))
         self.fullscreen_button.clicked.connect(self.toggle_full_screen)
         self.controls_layout.addWidget(self.fullscreen_button)
 
@@ -531,9 +524,9 @@ class MediaPlayer(QtWidgets.QWidget):
 
     def update_play_pause_button(self, state):
         if state == QMediaPlayer.PlayingState:
-            self.play_pause_button.setText("⏸")
+            self.play_pause_button.setIcon(QtGui.QIcon("icons/pause.svg"))
         else:
-            self.play_pause_button.setText("▶")
+            self.play_pause_button.setIcon(QtGui.QIcon("icons/play.svg"))
 
     def update_slider_position(self, position):
         if not self.is_seeking:
@@ -552,13 +545,13 @@ class MediaPlayer(QtWidgets.QWidget):
             self.main_window.nav_bar.hide()
             self.metadata_widget.hide()
             self.panel.setFixedWidth(self.main_window.width())
-            self.fullscreen_button.setText("⤡")
+            self.fullscreen_button.setIcon(QtGui.QIcon("icons/exitfullscreen.svg"))
         else:
             self.main_window.showNormal()
             self.main_window.nav_bar.show()
             self.metadata_widget.show()
             self.panel.setFixedWidth(int(self.main_window.width() * 0.6))
-            self.fullscreen_button.setText("⤢")
+            self.fullscreen_button.setIcon(QtGui.QIcon("icons/fullscreen.svg"))
 
     def eventFilter(self, source, event):
         if source in [self.video_widget, self.controls_widget]:
