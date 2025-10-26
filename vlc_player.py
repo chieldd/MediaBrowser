@@ -217,7 +217,7 @@ class MainWindow(QtWidgets.QWidget):
         video_files = [os.path.join(video_dir, f) for f in os.listdir(video_dir) if os.path.isfile(os.path.join(video_dir, f)) and f.lower().endswith(('.mp4', '.mkv', '.avi', '.mov', '.webm'))]
 
         # Responsive grid for movies
-        max_cols = max(1, self.grid_widget.width() // (tile_w + 30))
+        max_cols = max(1, self.scroll_area.viewport().width() // (tile_w + 30))
         m_row_tiles = []
         for idx, video_path in enumerate(video_files):
             meta = get_metadata(video_path)
@@ -254,7 +254,7 @@ class MainWindow(QtWidgets.QWidget):
                 btn = TileButton(title, image_path, show_path, None, parent=self.grid_widget, tile_width=tile_w, tile_height=tile_h, show_title=False)
                 btn.clicked.connect(lambda checked, sp=show_path, ip=image_path, t=title: self.show_overview(sp, ip, t))
                 s_row_tiles.append(btn)
-        for i in range(0, len(s_row_tiles), max_cols):
+        for i in range(0, len(s_row_tiles), max(1, self.scroll_area.viewport().width() // (tile_w + 30))):
             row_layout = QtWidgets.QHBoxLayout()
             row_layout.setContentsMargins(24,0,24,0)
             row_layout.setSpacing(50)
@@ -468,10 +468,15 @@ class BrowserControlBar(QtWidgets.QWidget):
 
     def check_mouse_pos(self):
         pos = QtGui.QCursor.pos()
-        if pos.x() < 100 and pos.y() < 100:
+        if pos.x() < 200 and pos.y() < 200:
             if self.isHidden():
                 self.show()
                 self.fade_timer.start(10000)
+
+    def closeEvent(self, event):
+        self.fade_timer.stop()
+        self.check_mouse_timer.stop()
+        event.accept()
 
     def close_browser(self):
         self.browser_process.kill()
