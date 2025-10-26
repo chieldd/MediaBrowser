@@ -347,9 +347,9 @@ class MainWindow(QtWidgets.QWidget):
         self.back_button.hide()
 
     def launch_browser(self, url):
-        self.hide()
         browser_executable = self.config.get("browser_executable", "chromium")
         self.browser_process = subprocess.Popen([browser_executable, "--kiosk", url])
+        QtCore.QTimer.singleShot(1500, self.hide)
         self.control_bar = BrowserControlBar(self.browser_process)
         self.control_bar.show()
 
@@ -422,24 +422,33 @@ class BrowserControlBar(QtWidgets.QWidget):
     def __init__(self, browser_process):
         super().__init__()
         self.browser_process = browser_process
-        self.setWindowFlags(QtCore.Qt.WindowStaysOnTopHint | QtCore.Qt.FramelessWindowHint)
-        self.setFixedHeight(60)
-        self.setStyleSheet("background-color: #222; color: #fff;")
-        layout = QtWidgets.QHBoxLayout()
-        layout.setContentsMargins(10, 10, 10, 10)
-        layout.setSpacing(20)
+        self.setWindowFlags(QtCore.Qt.WindowStaysOnTopHint | QtCore.Qt.FramelessWindowHint | QtCore.Qt.Tool)
+        self.setAttribute(QtCore.Qt.WA_TranslucentBackground)
+        self.setFixedSize(80, 80)
 
-        back_to_app_btn = QtWidgets.QPushButton("Back to App")
-        back_to_app_btn.setStyleSheet("font-size: 20px; padding: 10px 30px; background: #444; color: #fff; border-radius: 10px;")
-        back_to_app_btn.clicked.connect(self.close_browser)
-        layout.addWidget(back_to_app_btn)
+        layout = QtWidgets.QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
 
+        back_button = QtWidgets.QPushButton("←")
+        back_button.setFixedSize(60, 60)
+        back_button.setStyleSheet("""
+            QPushButton {
+                background-color: rgba(0, 0, 0, 0.5);
+                color: white;
+                font-size: 30px;
+                border-radius: 30px;
+            }
+            QPushButton:hover {
+                background-color: rgba(0, 0, 0, 0.7);
+            }
+        """)
+        back_button.clicked.connect(self.close_browser)
+        layout.addWidget(back_button)
         self.setLayout(layout)
-        self.setGeometry(0, 0, 300, 60)
+        self.setGeometry(20, 20, 80, 80)
 
     def close_browser(self):
         self.browser_process.kill()
-        self.close()
 
 if __name__ == '__main__':
     app = QtWidgets.QApplication(sys.argv)
