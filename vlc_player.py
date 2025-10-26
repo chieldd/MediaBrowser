@@ -473,13 +473,17 @@ class MediaPlayer(QtWidgets.QWidget):
         self.play_pause_button.clicked.connect(self.toggle_playback)
         self.controls_layout.addWidget(self.play_pause_button)
 
-        self.skip_backward_button = QtWidgets.QPushButton("<<")
-        self.skip_backward_button.setStyleSheet("background: transparent; border: none; color: white; font-size: 1.5em;")
+        self.skip_backward_button = QtWidgets.QPushButton()
+        self.skip_backward_button.setIconSize(QtCore.QSize(32, 32))
+        self.skip_backward_button.setStyleSheet("background: transparent; border: none;")
+        self.skip_backward_button.setIcon(create_colored_icon("icons/skip-backward.svg", self.icon_color))
         self.skip_backward_button.clicked.connect(self.skip_backward)
         self.controls_layout.addWidget(self.skip_backward_button)
 
-        self.skip_forward_button = QtWidgets.QPushButton(">>")
-        self.skip_forward_button.setStyleSheet("background: transparent; border: none; color: white; font-size: 1.5em;")
+        self.skip_forward_button = QtWidgets.QPushButton()
+        self.skip_forward_button.setIconSize(QtCore.QSize(32, 32))
+        self.skip_forward_button.setStyleSheet("background: transparent; border: none;")
+        self.skip_forward_button.setIcon(create_colored_icon("icons/skip-forward.svg", self.icon_color))
         self.skip_forward_button.clicked.connect(self.skip_forward)
         self.controls_layout.addWidget(self.skip_forward_button)
 
@@ -502,7 +506,7 @@ class MediaPlayer(QtWidgets.QWidget):
                 height: 18px;
                 margin-top: -7px;
                 margin-bottom: -7px;
-                border-radius: 10px;
+                border-radius: 0px;
             }
         """)
         self.seek_slider.sliderMoved.connect(self.set_position)
@@ -513,6 +517,7 @@ class MediaPlayer(QtWidgets.QWidget):
         self.controls_layout.addWidget(self.seek_slider)
 
         self.remaining_time_label = QtWidgets.QLabel("--:--")
+        self.remaining_time_label.setFixedWidth(100)
         self.remaining_time_label.setStyleSheet("color: #fff; margin-left: 10px; font-size: 1.1em;")
         self.controls_layout.addWidget(self.remaining_time_label)
 
@@ -607,12 +612,14 @@ class MediaPlayer(QtWidgets.QWidget):
             self.main_window.nav_bar.hide()
             self.metadata_widget.hide()
             self.panel.setFixedWidth(self.main_window.width())
+            self.panel_layout.setContentsMargins(0, 0, 0, 0)
             self.fullscreen_button.setIcon(create_colored_icon("icons/exitfullscreen.svg", self.icon_color))
         else:
             self.main_window.showNormal()
             self.main_window.nav_bar.show()
             self.metadata_widget.show()
             self.panel.setFixedWidth(int(self.main_window.width() * 0.6))
+            self.panel_layout.setContentsMargins(20, 20, 20, 20)
             self.fullscreen_button.setIcon(create_colored_icon("icons/fullscreen.svg", self.icon_color))
 
     def eventFilter(self, source, event):
@@ -622,11 +629,6 @@ class MediaPlayer(QtWidgets.QWidget):
                 self.hide_controls_timer.start(5000)
             elif event.type() == QtCore.QEvent.Enter:
                 self.show_controls()
-
-        if source == self.seek_slider and event.type() == QtCore.QEvent.MouseMove:
-            if event.buttons() == QtCore.Qt.NoButton:
-                value = self.seek_slider.minimum() + (self.seek_slider.maximum() - self.seek_slider.minimum()) * event.x() / self.seek_slider.width()
-                self.update_time_label(value)
 
         return super().eventFilter(source, event)
 
