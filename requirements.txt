@@ -1,0 +1,5 @@
+PyQt5
+requests
+Pillow
+tmdbv3api
+python-vlc
