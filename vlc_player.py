@@ -626,7 +626,7 @@ class MediaPlayer(QtWidgets.QWidget):
         else:
             self.controls_widget.setParent(self.panel)
             self.panel_layout.addWidget(self.controls_widget)
-            self.main_window.showNormal()
+            self.main_window.showFullScreen()
             self.main_window.nav_bar.show()
             self.metadata_widget.show()
             self.panel.setFixedWidth(int(self.main_window.width() * 0.6))
