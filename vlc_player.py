@@ -162,7 +162,7 @@ class MainWindow(QtWidgets.QWidget):
         self.load_tiles()
     
     def resizeEvent(self, event):
-        if self.stacked.currentWidget() == self.grid_widget:
+        if self.stacked.currentWidget() == self.scroll_area:
             self.load_tiles()
         event.accept()
     
@@ -181,8 +181,7 @@ class MainWindow(QtWidgets.QWidget):
                         child_item.widget().deleteLater()
                 
         video_dir = os.path.join(os.getcwd(), "/home/cdedood/Videos/2. Films")
-        row_width = self.width() - 400
-        tile_w = max(220, row_width // 7)
+        tile_w = 220
         tile_h = int(tile_w * 1.5)
 
         # Services label
