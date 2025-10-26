@@ -2,6 +2,7 @@ import sys
 import os
 import json
 import sqlite3
+import subprocess
 from PyQt5 import QtWidgets, QtGui, QtCore
 import vlc
 import requests
@@ -108,13 +109,43 @@ class MainWindow(QtWidgets.QWidget):
         super().__init__()
         self.setWindowTitle('Media Browser')
         self.setStyleSheet('background-color: #111; color: #fff; font-family: Segoe UI, Arial, sans-serif;')
-        self.stacked = QtWidgets.QStackedLayout(self)
-        self.grid_widget = QtWidgets.QWidget(self)
+
+        # Main vertical layout
+        self.root_layout = QtWidgets.QVBoxLayout(self)
+        self.root_layout.setContentsMargins(0, 0, 0, 0)
+        self.root_layout.setSpacing(0)
+
+        # Navigation bar
+        nav_bar = QtWidgets.QWidget()
+        nav_bar.setFixedHeight(60)
+        nav_bar_layout = QtWidgets.QHBoxLayout(nav_bar)
+        nav_bar_layout.setContentsMargins(20, 10, 20, 10)
+        nav_bar_layout.setAlignment(QtCore.Qt.AlignLeft)
+
+        self.home_button = QtWidgets.QPushButton("Home")
+        self.home_button.setStyleSheet("font-size: 1.2em; padding: 10px 20px; background: #333; border-radius: 10px;")
+        self.home_button.clicked.connect(self.back_to_grid)
+        nav_bar_layout.addWidget(self.home_button)
+
+        self.back_button = QtWidgets.QPushButton("Back")
+        self.back_button.setStyleSheet("font-size: 1.2em; padding: 10px 20px; background: #333; border-radius: 10px;")
+        self.back_button.clicked.connect(self.back_to_grid)
+        self.back_button.hide()
+        nav_bar_layout.addWidget(self.back_button)
+
+        self.root_layout.addWidget(nav_bar)
+
+        # Stacked layout for different screens
+        self.stacked = QtWidgets.QStackedLayout()
+        self.root_layout.addLayout(self.stacked)
+
+        self.grid_widget = QtWidgets.QWidget()
         self.main_layout = QtWidgets.QVBoxLayout(self.grid_widget)
         self.main_layout.setContentsMargins(0,0,0,0)
         self.main_layout.setSpacing(30)
         self.stacked.addWidget(self.grid_widget)
-        self.setLayout(self.stacked)
+
+        self.setLayout(self.root_layout)
         self.showFullScreen()
         self.load_tiles()
     
@@ -141,6 +172,31 @@ class MainWindow(QtWidgets.QWidget):
         row_width = self.width() - 400
         tile_w = max(220, row_width // 7)
         tile_h = int(tile_w * 1.5)
+
+        # Services label
+        services_label = QtWidgets.QLabel("Services", self.grid_widget)
+        services_label.setStyleSheet('font-size: 2.2em; font-weight: 700; color: #fff; margin-left: 24px; margin-bottom: 12px;')
+        self.main_layout.addWidget(services_label, alignment=QtCore.Qt.AlignLeft)
+        # Services row
+        services_layout = QtWidgets.QHBoxLayout()
+        services_layout.setContentsMargins(24,0,24,0)
+        services_layout.setSpacing(50)
+        services_layout.setAlignment(QtCore.Qt.AlignLeft)
+
+        self.netflix_button = QtWidgets.QPushButton("Netflix")
+        self.netflix_button.setStyleSheet("font-size: 1.2em; padding: 10px 20px; background: #E50914; color: white; border-radius: 10px;")
+        self.netflix_button.setFixedSize(200, 80)
+        services_layout.addWidget(self.netflix_button)
+        self.netflix_button.clicked.connect(lambda: self.launch_browser("https://www.netflix.com"))
+
+        self.youtube_button = QtWidgets.QPushButton("YouTube")
+        self.youtube_button.setStyleSheet("font-size: 1.2em; padding: 10px 20px; background: #FF0000; color: white; border-radius: 10px;")
+        self.youtube_button.setFixedSize(200, 80)
+        services_layout.addWidget(self.youtube_button)
+        self.youtube_button.clicked.connect(lambda: self.launch_browser("https://www.youtube.com"))
+
+        self.main_layout.addLayout(services_layout)
+
         # Movies label
         movies_label = QtWidgets.QLabel("Movies", self.grid_widget)
         movies_label.setStyleSheet('font-size: 2.2em; font-weight: 700; color: #fff; margin-left: 24px; margin-bottom: 12px;')
@@ -280,8 +336,27 @@ class MainWindow(QtWidgets.QWidget):
             load_episodes(0)
         self.stacked.addWidget(overview_widget)
         self.stacked.setCurrentWidget(overview_widget)
+        self.back_button.show()
+
     def back_to_grid(self):
         self.stacked.setCurrentWidget(self.grid_widget)
+        self.back_button.hide()
+
+    def launch_browser(self, url):
+        self.hide()
+        self.browser_process = subprocess.Popen(["chromium-browser", "--kiosk", url])
+        self.control_bar = BrowserControlBar(self.browser_process)
+        self.control_bar.show()
+
+        self.check_timer = QtCore.QTimer(self)
+        self.check_timer.timeout.connect(self.check_browser_status)
+        self.check_timer.start(500)  # Check every 500ms
+
+    def check_browser_status(self):
+        if self.browser_process.poll() is not None:  # Process has terminated
+            self.check_timer.stop()
+            self.control_bar.close()
+            self.show()
 
 class VLCPlayer(QtWidgets.QWidget):
     def __init__(self, video_path, metadata_url):
@@ -337,6 +412,29 @@ class VLCPlayer(QtWidgets.QWidget):
             media = self.instance.media_new(path)
             self.mediaplayer.set_media(media)
             self.mediaplayer.play()
+
+class BrowserControlBar(QtWidgets.QWidget):
+    def __init__(self, browser_process):
+        super().__init__()
+        self.browser_process = browser_process
+        self.setWindowFlags(QtCore.Qt.WindowStaysOnTopHint | QtCore.Qt.FramelessWindowHint)
+        self.setFixedHeight(60)
+        self.setStyleSheet("background-color: #222; color: #fff;")
+        layout = QtWidgets.QHBoxLayout()
+        layout.setContentsMargins(10, 10, 10, 10)
+        layout.setSpacing(20)
+
+        back_to_app_btn = QtWidgets.QPushButton("Back to App")
+        back_to_app_btn.setStyleSheet("font-size: 20px; padding: 10px 30px; background: #444; color: #fff; border-radius: 10px;")
+        back_to_app_btn.clicked.connect(self.close_browser)
+        layout.addWidget(back_to_app_btn)
+
+        self.setLayout(layout)
+        self.setGeometry(0, 0, 300, 60)
+
+    def close_browser(self):
+        self.browser_process.kill()
+        self.close()
 
 if __name__ == '__main__':
     app = QtWidgets.QApplication(sys.argv)

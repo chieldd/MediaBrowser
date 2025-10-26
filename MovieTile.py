@@ -5,9 +5,8 @@ from PIL import Image
 import os
 import sys
 
-class MediaTile(QtWidgets.QWidget):
+class MediaTile(QtWidgets.QWidget, QtWidgets.QPushButton):
     def __init__(self, media_path, width=220, parent=None):
-        super().__init__(parent)
         SQLiteDB = parent.SQLiteDB  # Assuming parent has an attribute SQLiteDB
         self.width = width
         self.height = int(width * 1.5)
