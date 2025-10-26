@@ -1,3 +1,4 @@
 {
-  "videoDir": "/home/cdedood/Videos/2. Films"
+  "videoDir": "/home/cdedood/Videos/2. Films",
+  "browser_executable": "chromium"
 }

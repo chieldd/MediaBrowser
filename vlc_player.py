@@ -146,6 +146,10 @@ class MainWindow(QtWidgets.QWidget):
         self.stacked.addWidget(self.grid_widget)
 
         self.setLayout(self.root_layout)
+
+        with open(CONFIG_PATH, 'r') as f:
+            self.config = json.load(f)
+
         self.showFullScreen()
         self.load_tiles()
     
@@ -344,7 +348,8 @@ class MainWindow(QtWidgets.QWidget):
 
     def launch_browser(self, url):
         self.hide()
-        self.browser_process = subprocess.Popen(["chromium-browser", "--kiosk", url])
+        browser_executable = self.config.get("browser_executable", "chromium")
+        self.browser_process = subprocess.Popen([browser_executable, "--kiosk", url])
         self.control_bar = BrowserControlBar(self.browser_process)
         self.control_bar.show()
 
