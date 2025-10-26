@@ -379,7 +379,8 @@ class MainWindow(QtWidgets.QWidget):
 class ClickableSlider(QtWidgets.QSlider):
     def mousePressEvent(self, event):
         if event.button() == QtCore.Qt.LeftButton:
-            self.setValue(self.minimum() + (self.maximum() - self.minimum()) * event.x() / self.width())
+            value = self.minimum() + (self.maximum() - self.minimum()) * event.x() / self.width()
+            self.setValue(int(value))
             event.accept()
             self.sliderMoved.emit(self.value())
         super().mousePressEvent(event)
@@ -392,12 +393,19 @@ class MediaPlayer(QtWidgets.QWidget):
         self.setStyleSheet('background-color: #000; color: #fff; font-family: Segoe UI, Arial, sans-serif;')
 
         # Main layout
-        layout = QtWidgets.QVBoxLayout(self)
-        layout.setContentsMargins(20, 20, 20, 20)
+        layout = QtWidgets.QHBoxLayout(self)
+        layout.setAlignment(QtCore.Qt.AlignCenter)
+
+        # Center Panel
+        self.panel = QtWidgets.QWidget()
+        self.panel.setFixedWidth(int(self.main_window.width() * 0.6))
+        self.panel_layout = QtWidgets.QVBoxLayout(self.panel)
+        self.panel_layout.setContentsMargins(20, 20, 20, 20)
+        layout.addWidget(self.panel)
 
         # --- Metadata Section ---
-        metadata_widget = QtWidgets.QWidget()
-        metadata_layout = QtWidgets.QVBoxLayout(metadata_widget)
+        self.metadata_widget = QtWidgets.QWidget()
+        metadata_layout = QtWidgets.QVBoxLayout(self.metadata_widget)
         metadata_layout.setContentsMargins(0, 0, 0, 15)
 
         meta = get_metadata(video_path)
@@ -421,7 +429,7 @@ class MediaPlayer(QtWidgets.QWidget):
         self.description_label.setStyleSheet('font-size: 1.2em; margin-top: 15px;')
         metadata_layout.addWidget(self.description_label)
 
-        layout.addWidget(metadata_widget)
+        self.panel_layout.addWidget(self.metadata_widget)
 
         # --- Video Player Section ---
         player_container = QtWidgets.QWidget()
@@ -439,12 +447,12 @@ class MediaPlayer(QtWidgets.QWidget):
         self.controls_layout.setContentsMargins(10, 5, 10, 5)
         player_layout.addWidget(self.controls_widget, 0, 0, QtCore.Qt.AlignBottom)
 
-        layout.addWidget(player_container, stretch=1)
+        self.panel_layout.addWidget(player_container, stretch=1)
 
         self.play_pause_button = QtWidgets.QPushButton("▶")
         self.play_pause_button.setStyleSheet("""
             QPushButton {
-                font-size: 2.5em;
+                font-size: 3em;
                 background-color: transparent;
                 border: none;
                 color: #fff;
@@ -478,10 +486,10 @@ class MediaPlayer(QtWidgets.QWidget):
         self.seek_slider.sliderReleased.connect(self.end_seek)
         self.controls_layout.addWidget(self.seek_slider)
 
-        self.fullscreen_button = QtWidgets.QPushButton("⛶")
+        self.fullscreen_button = QtWidgets.QPushButton("⤢")
         self.fullscreen_button.setStyleSheet("""
             QPushButton {
-                font-size: 2em;
+                font-size: 2.5em;
                 background-color: transparent;
                 border: none;
                 color: #fff;
@@ -542,11 +550,15 @@ class MediaPlayer(QtWidgets.QWidget):
         if self.is_fullscreen:
             self.main_window.showFullScreen()
             self.main_window.nav_bar.hide()
-            self.fullscreen_button.setText("↘↙")
+            self.metadata_widget.hide()
+            self.panel.setFixedWidth(self.main_window.width())
+            self.fullscreen_button.setText("⤡")
         else:
             self.main_window.showNormal()
             self.main_window.nav_bar.show()
-            self.fullscreen_button.setText("⛶")
+            self.metadata_widget.show()
+            self.panel.setFixedWidth(int(self.main_window.width() * 0.6))
+            self.fullscreen_button.setText("⤢")
 
     def eventFilter(self, source, event):
         if source in [self.video_widget, self.controls_widget]:
