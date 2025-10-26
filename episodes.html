@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Episodes</title>
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    #episode-grid {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 30px;
+      justify-content: center;
+      margin-top: 30px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <button id="back-btn" class="home-btn home-btn-top">&#8592; Back</button>
+    <h1 id="show-title" class="header"></h1>
+    <div style="margin-bottom:24px;">
+      <label for="season-select">Season:</label>
+      <select id="season-select"></select>
+    </div>
+    <div class="video-grid" id="episode-grid"></div>
+  </div>
+  <script>
+    function getQueryParam(name) {
+      const urlParams = new URLSearchParams(window.location.search);
+      return urlParams.get(name);
+    }
+    const show = getQueryParam('show');
+    document.getElementById('show-title').textContent = show || '';
+    function loadSeasons() {
+      fetch(`/api/seasons?show=${encodeURIComponent(show)}`)
+        .then(res => res.json())
+        .then(data => {
+          const select = document.getElementById('season-select');
+          select.innerHTML = '';
+          data.seasons.forEach(season => {
+            const option = document.createElement('option');
+            option.value = season;
+            option.textContent = season;
+            select.appendChild(option);
+          });
+          if (data.seasons.length > 0) {
+            loadEpisodes(data.seasons[0]);
+          }
+        });
+    }
+    function loadEpisodes(season) {
+        fetch(`/api/episodes?show=${encodeURIComponent(show)}&season=${encodeURIComponent(season)}`)
+            .then(res => res.json())
+            .then(async data => {
+            const grid = document.getElementById('episode-grid');
+            grid.innerHTML = '';
+
+            for (const episode of data.episodes) {
+                const tile = document.createElement('div');
+                tile.className = 'video-tile';
+                tile.onclick = () => {
+                  window.location.href = `video.html?file=${encodeURIComponent(episode.filename)}`;
+                };
+                tile.innerHTML = '';
+                try {
+                  const res = await fetch(`/api/metadata?file=${encodeURIComponent(episode.filename)}`);
+                  const meta = await res.json();
+                  console.log('Metadata for', episode.filename, ':', meta);
+                  console.log('Tile title:', meta.title || episode.title || episode.filename);
+                  if (meta.thumbnail) {
+                    const img = document.createElement('img');
+                    img.src = meta.thumbnail;
+                    img.alt = meta.title || episode.title;
+                    img.className = 'tile-thumbnail';
+                    tile.appendChild(img);
+                  }
+                  const titleDiv = document.createElement('div');
+                  titleDiv.className = 'tile-title';
+                  titleDiv.textContent = meta.title || episode.title || episode.filename;
+                  tile.appendChild(titleDiv);
+                } catch (e) {
+                  console.log('Metadata fetch failed for', episode.filename, e);
+                  const titleDiv = document.createElement('div');
+                  titleDiv.className = 'tile-title';
+                  titleDiv.textContent = episode.title || episode.filename;
+                  tile.appendChild(titleDiv);
+                }
+                grid.appendChild(tile);
+            }
+            });
+        }
+
+    document.getElementById('season-select').onchange = function() {
+      loadEpisodes(this.value);
+    };
+    document.getElementById('back-btn').onclick = function() {
+      window.location.href = 'index.html';
+    };
+    if (show) loadSeasons();
+  </script>
+</body>
+</html>

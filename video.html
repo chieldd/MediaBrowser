@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Play Video</title>
+
+  <!-- Video.js -->
+  <link href="https://vjs.zencdn.net/8.9.0/video-js.css" rel="stylesheet" />
+  <script src="https://vjs.zencdn.net/8.9.0/video.min.js"></script>
+
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <button id="back-btn" class="home-btn home-btn-top">&#8592; Back</button>
+  <div class="media-bg" id="media-bg"></div>
+
+  <div class="video-overlay-container">
+    <div class="video-wrapper">
+      <video
+        id="video-player"
+        class="video-js vjs-big-play-centered vjs-fluid"
+        controls
+        preload="auto"
+        data-setup="{}">
+        <source id="video-source" src="" type="application/x-mpegURL">
+        <track id="video-subtitles" kind="subtitles" src="" srclang="en" label="English" default>
+        Your browser does not support the video tag.
+      </video>
+    </div>
+
+    <div class="info-overlay" id="media-info">
+      <div class="media-title" id="media-title"></div>
+      <div class="media-meta" id="media-meta"></div>
+      <div class="media-desc" id="media-desc"></div>
+      <div class="media-rating" id="media-rating"></div>
+    </div>
+  </div>
+
+  <script>
+    function getQueryParam(name) {
+      const urlParams = new URLSearchParams(window.location.search);
+      return urlParams.get(name);
+    }
+
+    function formatDate(dateStr) {
+      if (!dateStr) return '';
+      const parts = dateStr.split('-');
+      if (parts.length === 3) return `${parts[2]}-${parts[1]}-${parts[0]}`;
+      return dateStr;
+    }
+
+    const filename = getQueryParam('file');
+
+    async function loadMetadata() {
+      if (!filename) return;
+      const res = await fetch(`/api/metadata?file=${encodeURIComponent(filename)}`);
+      if (!res.ok) return;
+      const meta = await res.json();
+
+      if (meta.thumbnail) {
+        document.getElementById('media-bg').style.backgroundImage = `url('${meta.thumbnail}')`;
+      }
+
+      document.getElementById('media-title').textContent = meta.title || filename.split('/').pop();
+
+      let metaText = '';
+      let showName = '';
+      let seasonNum = '';
+
+      if (meta.title && meta.title.match(/S\d{2}E\d{2}/)) {
+        const match = meta.title.match(/S(\d{2})E(\d{2})/);
+        if (match) {
+          seasonNum = parseInt(match[1]);
+        }
+      }
+
+      if (filename) {
+        const parts = filename.split('/');
+        if (parts.length >= 3) {
+          showName = parts[0];
+          if (!seasonNum) {
+            const seasonMatch = parts[1].match(/Season ?(\d+)/i);
+            if (seasonMatch) seasonNum = seasonMatch[1];
+          }
+        }
+      }
+
+      document.getElementById('back-btn').onclick = function() {
+        if (showName && seasonNum) {
+          window.location.href = `episodes.html?show=${encodeURIComponent(showName)}&season=${encodeURIComponent(seasonNum)}`;
+        } else if (showName) {
+          window.location.href = `episodes.html?show=${encodeURIComponent(showName)}`;
+        } else {
+          window.location.href = 'index.html';
+        }
+      };
+
+      if (meta.title && meta.title.match(/S\d{2}E\d{2}/)) {
+        const match = meta.title.match(/S(\d{2})E(\d{2})/);
+        if (match) {
+          metaText += `Season ${parseInt(match[1])}, Episode ${parseInt(match[2])}`;
+        }
+      }
+
+      if (meta.release_date) {
+        metaText += (metaText ? ' • ' : '') + `Release: ${formatDate(meta.release_date)}`;
+      }
+
+      document.getElementById('media-meta').textContent = metaText;
+      document.getElementById('media-desc').textContent = meta.description || meta.overview || '';
+
+      let rating = meta.rating || meta.vote_average;
+      if (rating) {
+        let stars = '';
+        for (let i = 1; i <= 10; i++) {
+          stars += `<span class='star' style='color:${i <= Math.round(rating) ? '#FFD700' : '#555'};'>&#9733;</span>`;
+        }
+        document.getElementById('media-rating').innerHTML = `Rating: ${stars} (${rating}/10)`;
+      }
+    }
+
+    if (filename) {
+      // Request backend to start VLC stream for this file
+      fetch(`/api/vlc_stream?file=${encodeURIComponent(filename)}`)
+        .then(() => {
+          // Set Video.js source to VLC HLS stream URL
+          document.getElementById('video-source').src = 'http://localhost:8080/stream.m3u8';
+          document.getElementById('video-subtitles').src = `/subtitles/${encodeURIComponent(filename.replace(/\.[^.]+$/, '.vtt'))}`;
+          const player = videojs('video-player');
+          player.on('loadedmetadata', () => {
+            const tech = player.tech(true);
+            const videoEl = tech.el();
+            if (videoEl && videoEl.videoWidth && videoEl.videoHeight) {
+              const wrapper = document.querySelector('.video-wrapper');
+              const aspect = videoEl.videoWidth / videoEl.videoHeight;
+              wrapper.style.aspectRatio = `${aspect}`;
+            }
+          });
+          loadMetadata();
+        });
+    } else {
+      document.getElementById('media-title').textContent = 'No video selected.';
+    }
+  </script>
+
+  <style>
+    body {
+      background: #111;
+      color: #fff;
+      font-family: 'Segoe UI', Arial, sans-serif;
+      margin: 0;
+    }
+
+    .home-btn {
+      background: #222;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 10px 28px;
+      font-size: 1.1em;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .home-btn:hover {
+      background: #333;
+    }
+
+    .home-btn-top {
+      position: fixed;
+      top: 32px;
+      left: 32px;
+      z-index: 10;
+    }
+
+    .media-bg {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      z-index: -1;
+      background-size: cover;
+      background-position: center;
+      filter: blur(10px) brightness(0.4);
+    }
+
+    /* Main video + overlay container */
+    .video-overlay-container {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .video-wrapper {
+      width: 90vw;
+      max-width: 1400px;
+      aspect-ratio: 16 / 9;
+      position: relative;
+      z-index: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto;
+    }
+
+    #video-player {
+      width: 100%;
+      height: 100%;
+      border-radius: 12px;
+      background: #000;
+      box-shadow: 0 4px 32px rgba(0,0,0,0.6);
+    }
+
+    /* Overlay info panel over top of the video */
+    .info-overlay {
+      position: absolute;
+      left: 50%;
+      top: 5%;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.6);
+      padding: 24px 32px;
+      border-radius: 16px;
+      max-width: 80vw;
+      text-align: left;
+      z-index: 2;
+      box-shadow: 0 2px 24px rgba(0,0,0,0.4);
+    }
+
+    .media-title {
+      font-size: 1.8em;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+
+    .media-meta {
+      font-size: 1em;
+      color: #ccc;
+      margin-bottom: 10px;
+    }
+
+    .media-desc {
+      font-size: 1em;
+      margin-bottom: 8px;
+      color: #eee;
+    }
+
+    .star {
+      font-size: 0.9em;
+    }
+  </style>
+</body>
+</html>
