@@ -473,6 +473,16 @@ class MediaPlayer(QtWidgets.QWidget):
         self.play_pause_button.clicked.connect(self.toggle_playback)
         self.controls_layout.addWidget(self.play_pause_button)
 
+        self.skip_backward_button = QtWidgets.QPushButton("<<")
+        self.skip_backward_button.setStyleSheet("background: transparent; border: none; color: white; font-size: 1.5em;")
+        self.skip_backward_button.clicked.connect(self.skip_backward)
+        self.controls_layout.addWidget(self.skip_backward_button)
+
+        self.skip_forward_button = QtWidgets.QPushButton(">>")
+        self.skip_forward_button.setStyleSheet("background: transparent; border: none; color: white; font-size: 1.5em;")
+        self.skip_forward_button.clicked.connect(self.skip_forward)
+        self.controls_layout.addWidget(self.skip_forward_button)
+
         self.seek_slider = ClickableSlider(QtCore.Qt.Horizontal)
         self.seek_slider.setStyleSheet("""
             QSlider::groove:horizontal {
@@ -487,21 +497,23 @@ class MediaPlayer(QtWidgets.QWidget):
             }
             QSlider::handle:horizontal {
                 background: #fff;
-                border: 2px solid #E50914;
+                border: 2px solid #fff;
                 width: 18px;
                 height: 18px;
-                margin-top: -6px;
-                margin-bottom: -6px;
+                margin-top: -7px;
+                margin-bottom: -7px;
                 border-radius: 10px;
             }
         """)
         self.seek_slider.sliderMoved.connect(self.set_position)
         self.seek_slider.sliderPressed.connect(self.start_seek)
         self.seek_slider.sliderReleased.connect(self.end_seek)
+        self.seek_slider.setMouseTracking(True)
+        self.seek_slider.installEventFilter(self)
         self.controls_layout.addWidget(self.seek_slider)
 
         self.remaining_time_label = QtWidgets.QLabel("--:--")
-        self.remaining_time_label.setStyleSheet("color: #fff; margin-left: 10px;")
+        self.remaining_time_label.setStyleSheet("color: #fff; margin-left: 10px; font-size: 1.1em;")
         self.controls_layout.addWidget(self.remaining_time_label)
 
         self.fullscreen_button = QtWidgets.QPushButton()
@@ -535,6 +547,12 @@ class MediaPlayer(QtWidgets.QWidget):
         self.is_seeking = False
         self.set_position(self.seek_slider.value())
 
+    def skip_forward(self):
+        self.media_player.setPosition(self.media_player.position() + 10000)
+
+    def skip_backward(self):
+        self.media_player.setPosition(self.media_player.position() - 10000)
+
     def toggle_playback(self):
         if self.media_player.state() == QMediaPlayer.PlayingState:
             self.media_player.pause()
@@ -557,9 +575,15 @@ class MediaPlayer(QtWidgets.QWidget):
         remaining = duration - position
         if remaining < 0:
             remaining = 0
-        minutes = remaining // 60000
+
+        hours = remaining // 3600000
+        minutes = (remaining % 3600000) // 60000
         seconds = (remaining % 60000) // 1000
-        self.remaining_time_label.setText(f"-{minutes:02}:{seconds:02}")
+
+        if hours > 0:
+            self.remaining_time_label.setText(f"{hours}:{minutes:02}:{seconds:02}")
+        else:
+            self.remaining_time_label.setText(f"{minutes:02}:{seconds:02}")
 
     def set_slider_range(self, duration):
         self.seek_slider.setRange(0, duration)
@@ -598,6 +622,12 @@ class MediaPlayer(QtWidgets.QWidget):
                 self.hide_controls_timer.start(5000)
             elif event.type() == QtCore.QEvent.Enter:
                 self.show_controls()
+
+        if source == self.seek_slider and event.type() == QtCore.QEvent.MouseMove:
+            if event.buttons() == QtCore.Qt.NoButton:
+                value = self.seek_slider.minimum() + (self.seek_slider.maximum() - self.seek_slider.minimum()) * event.x() / self.seek_slider.width()
+                self.update_time_label(value)
+
         return super().eventFilter(source, event)
 
     def show_controls(self):
