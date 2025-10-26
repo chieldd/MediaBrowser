@@ -125,11 +125,17 @@ class MainWindow(QtWidgets.QWidget):
     
     def load_tiles(self):
         # Clear layout
-        while self.main_layout.count():
-            item = self.main_layout.takeAt(0)
-            widget = item.widget()
-            if widget:
-                widget.setParent(None)
+        for i in reversed(range(self.main_layout.count())):
+            item = self.main_layout.itemAt(i)
+            if item.widget():
+                item.widget().deleteLater()
+            elif item.layout():
+                # If the item is a layout, clear its widgets
+                layout = item.layout()
+                while layout.count():
+                    child_item = layout.takeAt(0)
+                    if child_item.widget():
+                        child_item.widget().deleteLater()
                 
         video_dir = os.path.join(os.getcwd(), "/home/cdedood/Videos/2. Films")
         row_width = self.width() - 400
