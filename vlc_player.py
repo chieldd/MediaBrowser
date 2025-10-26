@@ -418,6 +418,7 @@ class MediaPlayer(QtWidgets.QWidget):
         self.panel.setFixedWidth(int(self.main_window.width() * 0.6))
         self.panel_layout = QtWidgets.QVBoxLayout(self.panel)
         self.panel_layout.setContentsMargins(20, 20, 20, 20)
+        self.video_layout = layout
         layout.addWidget(self.panel)
 
         # --- Metadata Section ---
@@ -612,14 +613,18 @@ class MediaPlayer(QtWidgets.QWidget):
             self.main_window.nav_bar.hide()
             self.metadata_widget.hide()
             self.panel.setFixedWidth(self.main_window.width())
-            self.panel_layout.setContentsMargins(0, 0, 0, 0)
+            self.video_layout.setContentsMargins(0, 0, 0, 0)
+            self.controls_widget.setParent(self.video_widget)
+            self.controls_widget.show()
             self.fullscreen_button.setIcon(create_colored_icon("icons/exitfullscreen.svg", self.icon_color))
         else:
+            self.controls_widget.setParent(self.panel)
+            self.panel_layout.addWidget(self.controls_widget)
             self.main_window.showNormal()
             self.main_window.nav_bar.show()
             self.metadata_widget.show()
             self.panel.setFixedWidth(int(self.main_window.width() * 0.6))
-            self.panel_layout.setContentsMargins(20, 20, 20, 20)
+            self.video_layout.setContentsMargins(10, 10, 10, 10)
             self.fullscreen_button.setIcon(create_colored_icon("icons/fullscreen.svg", self.icon_color))
 
     def eventFilter(self, source, event):
