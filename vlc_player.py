@@ -456,7 +456,12 @@ class MediaPlayer(QtWidgets.QWidget):
 
         self.media_player = QMediaPlayer(None, QMediaPlayer.VideoSurface)
         self.video_widget = QVideoWidget()
+        self.video_widget.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
+        self.video_widget.setStyleSheet("background-color: black;")
         player_layout.addWidget(self.video_widget, 0, 0)
+
+        # Ensure the video respects the aspect ratio
+        self.video_widget.setAspectRatioMode(QtCore.Qt.KeepAspectRatio)
 
         # --- Controls Overlay ---
         self.controls_widget = QtWidgets.QWidget()
@@ -617,6 +622,7 @@ class MediaPlayer(QtWidgets.QWidget):
             self.controls_widget.setParent(self.video_widget)
             self.controls_widget.show()
             self.fullscreen_button.setIcon(create_colored_icon("icons/exitfullscreen.svg", self.icon_color))
+            self.panel_layout.setContentsMargins(0, 0, 0, 0)
         else:
             self.controls_widget.setParent(self.panel)
             self.panel_layout.addWidget(self.controls_widget)
@@ -626,6 +632,7 @@ class MediaPlayer(QtWidgets.QWidget):
             self.panel.setFixedWidth(int(self.main_window.width() * 0.6))
             self.video_layout.setContentsMargins(10, 10, 10, 10)
             self.fullscreen_button.setIcon(create_colored_icon("icons/fullscreen.svg", self.icon_color))
+            self.panel_layout.setContentsMargins(20, 20, 20, 20)
 
     def eventFilter(self, source, event):
         if source in [self.video_widget, self.controls_widget]:
