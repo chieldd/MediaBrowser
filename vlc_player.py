@@ -117,9 +117,9 @@ class MainWindow(QtWidgets.QWidget):
         self.root_layout.setSpacing(0)
 
         # Navigation bar
-        nav_bar = QtWidgets.QWidget()
-        nav_bar.setFixedHeight(60)
-        nav_bar_layout = QtWidgets.QHBoxLayout(nav_bar)
+        self.nav_bar = QtWidgets.QWidget()
+        self.nav_bar.setFixedHeight(60)
+        nav_bar_layout = QtWidgets.QHBoxLayout(self.nav_bar)
         nav_bar_layout.setContentsMargins(20, 10, 20, 10)
         nav_bar_layout.setAlignment(QtCore.Qt.AlignLeft)
 
@@ -134,7 +134,7 @@ class MainWindow(QtWidgets.QWidget):
         self.back_button.hide()
         nav_bar_layout.addWidget(self.back_button)
 
-        self.root_layout.addWidget(nav_bar)
+        self.root_layout.addWidget(self.nav_bar)
 
         # Stacked layout for different screens
         self.stacked = QtWidgets.QStackedLayout()
@@ -264,7 +264,7 @@ class MainWindow(QtWidgets.QWidget):
                 row_layout.addWidget(btn)
             self.main_layout.addLayout(row_layout)
     def open_player(self, video_path, metadata_url=None):
-        self.player_widget = MediaPlayer(video_path, self)
+        self.player_widget = MediaPlayer(video_path, self, self)
         self.stacked.addWidget(self.player_widget)
         self.stacked.setCurrentWidget(self.player_widget)
         self.back_button.show()
@@ -376,44 +376,144 @@ class MainWindow(QtWidgets.QWidget):
             self.activateWindow()
             self.back_to_grid()
 
+class ClickableSlider(QtWidgets.QSlider):
+    def mousePressEvent(self, event):
+        if event.button() == QtCore.Qt.LeftButton:
+            self.setValue(self.minimum() + (self.maximum() - self.minimum()) * event.x() / self.width())
+            event.accept()
+            self.sliderMoved.emit(self.value())
+        super().mousePressEvent(event)
+
 class MediaPlayer(QtWidgets.QWidget):
-    def __init__(self, video_path, parent=None):
+    def __init__(self, video_path, main_window, parent=None):
         super().__init__(parent)
+        self.main_window = main_window
+        self.is_fullscreen = False
         self.setStyleSheet('background-color: #000; color: #fff; font-family: Segoe UI, Arial, sans-serif;')
-
-        self.media_player = QMediaPlayer(None, QMediaPlayer.VideoSurface)
-        self.video_widget = QVideoWidget()
-
-        # Controls
-        self.controls_widget = QtWidgets.QWidget()
-        self.controls_layout = QtWidgets.QHBoxLayout(self.controls_widget)
-        self.controls_layout.setContentsMargins(10, 5, 10, 5)
-
-        self.play_pause_button = QtWidgets.QPushButton("Play")
-        self.play_pause_button.setStyleSheet("font-size: 1.1em; background: #333; border-radius: 8px; padding: 8px 16px;")
-        self.play_pause_button.clicked.connect(self.toggle_playback)
-        self.controls_layout.addWidget(self.play_pause_button)
-
-        self.seek_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
-        self.seek_slider.sliderMoved.connect(self.set_position)
-        self.controls_layout.addWidget(self.seek_slider)
 
         # Main layout
         layout = QtWidgets.QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.addWidget(self.video_widget)
-        layout.addWidget(self.controls_widget)
-        self.setLayout(layout)
+        layout.setContentsMargins(20, 20, 20, 20)
+
+        # --- Metadata Section ---
+        metadata_widget = QtWidgets.QWidget()
+        metadata_layout = QtWidgets.QVBoxLayout(metadata_widget)
+        metadata_layout.setContentsMargins(0, 0, 0, 15)
+
+        meta = get_metadata(video_path)
+        title = meta.get('title', os.path.basename(video_path))
+        description = meta.get('description', 'No description available.')
+        rating = meta.get('rating', 'N/A')
+        release_date = meta.get('release_date', '')
+        duration = meta.get('duration', '')
+
+        self.title_label = QtWidgets.QLabel(title)
+        self.title_label.setStyleSheet('font-size: 2.5em; font-weight: 700;')
+        metadata_layout.addWidget(self.title_label)
+
+        details_text = f"Rating: {rating} | Released: {release_date} | Duration: {duration} mins"
+        self.details_label = QtWidgets.QLabel(details_text)
+        self.details_label.setStyleSheet('font-size: 1.1em; color: #aaa; margin-top: 5px;')
+        metadata_layout.addWidget(self.details_label)
+
+        self.description_label = QtWidgets.QLabel(description)
+        self.description_label.setWordWrap(True)
+        self.description_label.setStyleSheet('font-size: 1.2em; margin-top: 15px;')
+        metadata_layout.addWidget(self.description_label)
+
+        layout.addWidget(metadata_widget)
+
+        # --- Video Player Section ---
+        player_container = QtWidgets.QWidget()
+        player_layout = QtWidgets.QGridLayout(player_container)
+        player_layout.setContentsMargins(0, 0, 0, 0)
+
+        self.media_player = QMediaPlayer(None, QMediaPlayer.VideoSurface)
+        self.video_widget = QVideoWidget()
+        player_layout.addWidget(self.video_widget, 0, 0)
+
+        # --- Controls Overlay ---
+        self.controls_widget = QtWidgets.QWidget()
+        self.controls_widget.setStyleSheet("background-color: rgba(0, 0, 0, 0.6);")
+        self.controls_layout = QtWidgets.QHBoxLayout(self.controls_widget)
+        self.controls_layout.setContentsMargins(10, 5, 10, 5)
+        player_layout.addWidget(self.controls_widget, 0, 0, QtCore.Qt.AlignBottom)
+
+        layout.addWidget(player_container, stretch=1)
+
+        self.play_pause_button = QtWidgets.QPushButton("▶")
+        self.play_pause_button.setStyleSheet("""
+            QPushButton {
+                font-size: 2.5em;
+                background-color: transparent;
+                border: none;
+                color: #fff;
+                padding: 0px 15px;
+            }
+        """)
+        self.play_pause_button.clicked.connect(self.toggle_playback)
+        self.controls_layout.addWidget(self.play_pause_button)
+
+        self.seek_slider = ClickableSlider(QtCore.Qt.Horizontal)
+        self.seek_slider.setStyleSheet("""
+            QSlider::groove:horizontal {
+                border: 1px solid #bbb;
+                background: #bbb;
+                height: 6px;
+                border-radius: 3px;
+            }
+            QSlider::handle:horizontal {
+                background: #fff;
+                border: 1px solid #fff;
+                width: 16px;
+                height: 16px;
+                line-height: 20px;
+                margin-top: -5px;
+                margin-bottom: -5px;
+                border-radius: 8px;
+            }
+        """)
+        self.seek_slider.sliderMoved.connect(self.set_position)
+        self.seek_slider.sliderPressed.connect(self.start_seek)
+        self.seek_slider.sliderReleased.connect(self.end_seek)
+        self.controls_layout.addWidget(self.seek_slider)
+
+        self.fullscreen_button = QtWidgets.QPushButton("⛶")
+        self.fullscreen_button.setStyleSheet("""
+            QPushButton {
+                font-size: 2em;
+                background-color: transparent;
+                border: none;
+                color: #fff;
+                padding: 0px 10px;
+            }
+        """)
+        self.fullscreen_button.clicked.connect(self.toggle_full_screen)
+        self.controls_layout.addWidget(self.fullscreen_button)
 
         self.media_player.setVideoOutput(self.video_widget)
         self.media_player.setMedia(QMediaContent(QtCore.QUrl.fromLocalFile(video_path)))
 
+        # Auto-hide controls
+        self.hide_controls_timer = QtCore.QTimer(self)
+        self.hide_controls_timer.setSingleShot(True)
+        self.hide_controls_timer.timeout.connect(self.hide_controls)
+        self.video_widget.setMouseTracking(True)
+        self.video_widget.installEventFilter(self)
+        self.controls_widget.installEventFilter(self)
+
         # Connect signals
         self.media_player.stateChanged.connect(self.update_play_pause_button)
+        self.is_seeking = False
         self.media_player.positionChanged.connect(self.update_slider_position)
         self.media_player.durationChanged.connect(self.set_slider_range)
 
-        self.media_player.play()
+    def start_seek(self):
+        self.is_seeking = True
+
+    def end_seek(self):
+        self.is_seeking = False
+        self.set_position(self.seek_slider.value())
 
     def toggle_playback(self):
         if self.media_player.state() == QMediaPlayer.PlayingState:
@@ -423,18 +523,65 @@ class MediaPlayer(QtWidgets.QWidget):
 
     def update_play_pause_button(self, state):
         if state == QMediaPlayer.PlayingState:
-            self.play_pause_button.setText("Pause")
+            self.play_pause_button.setText("⏸")
         else:
-            self.play_pause_button.setText("Play")
+            self.play_pause_button.setText("▶")
 
     def update_slider_position(self, position):
-        self.seek_slider.setValue(position)
+        if not self.is_seeking:
+            self.seek_slider.setValue(position)
 
     def set_slider_range(self, duration):
         self.seek_slider.setRange(0, duration)
 
     def set_position(self, position):
         self.media_player.setPosition(position)
+
+    def toggle_full_screen(self):
+        self.is_fullscreen = not self.is_fullscreen
+        if self.is_fullscreen:
+            self.main_window.showFullScreen()
+            self.main_window.nav_bar.hide()
+            self.fullscreen_button.setText("↘↙")
+        else:
+            self.main_window.showNormal()
+            self.main_window.nav_bar.show()
+            self.fullscreen_button.setText("⛶")
+
+    def eventFilter(self, source, event):
+        if source in [self.video_widget, self.controls_widget]:
+            if event.type() == QtCore.QEvent.MouseMove:
+                self.show_controls()
+                self.hide_controls_timer.start(5000)
+            elif event.type() == QtCore.QEvent.Enter:
+                self.show_controls()
+        return super().eventFilter(source, event)
+
+    def show_controls(self):
+        self.controls_widget.show()
+        self.fade_in_animation()
+
+    def hide_controls(self):
+        self.fade_out_animation()
+
+    def fade_in_animation(self):
+        fade_in = QtWidgets.QGraphicsOpacityEffect()
+        self.controls_widget.setGraphicsEffect(fade_in)
+        self.animation = QtCore.QPropertyAnimation(fade_in, b"opacity")
+        self.animation.setDuration(300)
+        self.animation.setStartValue(0)
+        self.animation.setEndValue(1)
+        self.animation.start()
+
+    def fade_out_animation(self):
+        fade_out = QtWidgets.QGraphicsOpacityEffect()
+        self.controls_widget.setGraphicsEffect(fade_out)
+        self.animation = QtCore.QPropertyAnimation(fade_out, b"opacity")
+        self.animation.setDuration(300)
+        self.animation.setStartValue(1)
+        self.animation.setEndValue(0)
+        self.animation.finished.connect(self.controls_widget.hide)
+        self.animation.start()
 
 class BrowserControlBar(QtWidgets.QWidget):
     def __init__(self, browser_process):

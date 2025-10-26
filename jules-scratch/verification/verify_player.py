@@ -26,9 +26,6 @@ def test_media_player_screenshot(qtbot):
     player = window.stacked.currentWidget()
     assert player is not None
 
-    # Wait for the player to be ready
-    qtbot.waitUntil(lambda: player.media_player.state() == QtWidgets.QMediaPlayer.PlayingState, timeout=5000)
-
     # Take a screenshot
     screenshot = window.grab()
     screenshot.save("jules-scratch/verification/verification.png", "png")
