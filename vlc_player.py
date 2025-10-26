@@ -143,6 +143,7 @@ class MainWindow(QtWidgets.QWidget):
         self.scroll_area = QtWidgets.QScrollArea()
         self.scroll_area.setWidgetResizable(True)
         self.scroll_area.setStyleSheet("QScrollArea { border: none; }")
+        self.scroll_area.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
 
         self.grid_widget = QtWidgets.QWidget()
         self.main_layout = QtWidgets.QVBoxLayout(self.grid_widget)
@@ -261,9 +262,11 @@ class MainWindow(QtWidgets.QWidget):
             for btn in s_row_tiles[i:i+max_cols]:
                 row_layout.addWidget(btn)
             self.main_layout.addLayout(row_layout)
-    def open_player(self, video_path, metadata_url):
-        self.player_window = VLCPlayer(video_path, metadata_url)
-        self.player_window.show()
+    def open_player(self, video_path, metadata_url=None):
+        self.player_widget = VLCPlayer(video_path, self)
+        self.stacked.addWidget(self.player_widget)
+        self.stacked.setCurrentWidget(self.player_widget)
+        self.back_button.show()
     def show_overview(self, show_folder, poster_url, show_title):
         overview_widget = QtWidgets.QWidget(self)
         overview_widget.setStyleSheet('background: #111;')
@@ -373,42 +376,73 @@ class MainWindow(QtWidgets.QWidget):
             self.back_to_grid()
 
 class VLCPlayer(QtWidgets.QWidget):
-    def __init__(self, video_path, metadata_url):
-        super().__init__()
-        self.setWindowTitle('Play Video')
-        self.setGeometry(100, 100, 1200, 800)
+    def __init__(self, video_path, parent=None):
+        super().__init__(parent)
         self.setStyleSheet('background-color: #111; color: #fff; font-family: Segoe UI, Arial, sans-serif;')
-        self.info_panel = QtWidgets.QWidget(self)
-        self.info_panel.setStyleSheet('background: rgba(0,0,0,0.7); border-radius: 16px; padding: 24px 32px;')
-        self.info_panel.setGeometry(100, 40, 1000, 180)
-        self.title_label = QtWidgets.QLabel('', self.info_panel)
-        self.title_label.setStyleSheet('font-size: 1.8em; font-weight: 600; color: #fff;')
-        self.meta_label = QtWidgets.QLabel('', self.info_panel)
-        self.meta_label.setStyleSheet('font-size: 1em; color: #ccc;')
-        self.desc_label = QtWidgets.QLabel('', self.info_panel)
-        self.desc_label.setStyleSheet('font-size: 1em; color: #eee;')
-        self.rating_label = QtWidgets.QLabel('', self.info_panel)
-        self.rating_label.setStyleSheet('font-size: 1em; color: #FFD700;')
-        vbox = QtWidgets.QVBoxLayout(self.info_panel)
-        vbox.addWidget(self.title_label)
-        vbox.addWidget(self.meta_label)
-        vbox.addWidget(self.desc_label)
-        vbox.addWidget(self.rating_label)
-        self.info_panel.setLayout(vbox)
+
         self.instance = vlc.Instance()
         self.mediaplayer = self.instance.media_player_new()
-        self.videoframe = QtWidgets.QFrame(self)
-        self.videoframe.setGeometry(100, 240, 1000, 560)
+
+        self.videoframe = QtWidgets.QFrame()
         self.videoframe.setStyleSheet('background: #000; border-radius: 12px;')
+
+        layout = QtWidgets.QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+
+        self.info_panel = QtWidgets.QWidget(self)
+        self.info_panel.setStyleSheet('background: rgba(0,0,0,0.7); border-radius: 16px; padding: 24px 32px;')
+        info_layout = QtWidgets.QVBoxLayout(self.info_panel)
+        self.title_label = QtWidgets.QLabel('')
+        self.title_label.setStyleSheet('font-size: 1.8em; font-weight: 600; color: #fff;')
+        info_layout.addWidget(self.title_label)
+        self.meta_label = QtWidgets.QLabel('')
+        self.meta_label.setStyleSheet('font-size: 1em; color: #ccc;')
+        info_layout.addWidget(self.meta_label)
+        self.desc_label = QtWidgets.QLabel('')
+        self.desc_label.setStyleSheet('font-size: 1em; color: #eee;')
+        info_layout.addWidget(self.desc_label)
+        self.rating_label = QtWidgets.QLabel('')
+        self.rating_label.setStyleSheet('font-size: 1em; color: #FFD700;')
+        info_layout.addWidget(self.rating_label)
+        layout.addWidget(self.info_panel)
+
+        layout.addWidget(self.videoframe)
+        self.setLayout(layout)
+
+        # Player controls
+        self.controls = QtWidgets.QWidget(self)
+        self.controls.setStyleSheet("background-color: rgba(0,0,0,0.5); border-radius: 10px;")
+        controls_layout = QtWidgets.QHBoxLayout(self.controls)
+
+        self.play_pause_button = QtWidgets.QPushButton("Pause")
+        self.play_pause_button.setStyleSheet("font-size: 1.2em; padding: 10px;")
+        self.play_pause_button.clicked.connect(self.toggle_play_pause)
+        controls_layout.addWidget(self.play_pause_button)
+
+        self.seek_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
+        self.seek_slider.sliderMoved.connect(self.set_position)
+        controls_layout.addWidget(self.seek_slider)
+
+        self.timer = QtCore.QTimer(self)
+        self.timer.setInterval(200)
+        self.timer.timeout.connect(self.update_ui)
+        self.timer.start()
+
+        self.subtitle_button = QtWidgets.QPushButton("Subtitles")
+        self.subtitle_button.setStyleSheet("font-size: 1.2em; padding: 10px;")
+        self.subtitle_button.clicked.connect(self.cycle_subtitle_track)
+        controls_layout.addWidget(self.subtitle_button)
+
         if sys.platform == "linux":
             self.mediaplayer.set_xwindow(int(self.videoframe.winId()))
         elif sys.platform == "win32":
             self.mediaplayer.set_hwnd(int(self.videoframe.winId()))
         elif sys.platform == "darwin":
             self.mediaplayer.set_nsobject(int(self.videoframe.winId()))
+
         self.load_metadata(video_path)
         self.play_video(video_path)
-    
+
     def load_metadata(self, video_path):
         meta = get_metadata(video_path)
         self.title_label.setText(meta.get('title', ''))
@@ -421,11 +455,35 @@ class VLCPlayer(QtWidgets.QWidget):
         if rating:
             stars = '★' * int(round(float(rating))) + '☆' * (10 - int(round(float(rating))))
             self.rating_label.setText(f'Rating: {stars} ({rating}/10)')
+
     def play_video(self, path):
         if os.path.exists(path):
             media = self.instance.media_new(path)
             self.mediaplayer.set_media(media)
             self.mediaplayer.play()
+
+    def resizeEvent(self, event):
+        self.controls.setGeometry(10, self.height() - 80, self.width() - 20, 70)
+
+    def toggle_play_pause(self):
+        if self.mediaplayer.is_playing():
+            self.mediaplayer.pause()
+            self.play_pause_button.setText("Play")
+        else:
+            self.mediaplayer.play()
+            self.play_pause_button.setText("Pause")
+
+    def set_position(self, position):
+        self.mediaplayer.set_position(position / 1000.0)
+
+    def update_ui(self):
+        self.seek_slider.setValue(int(self.mediaplayer.get_position() * 1000))
+
+    def cycle_subtitle_track(self):
+        current_track = self.mediaplayer.video_get_spu()
+        track_count = self.mediaplayer.video_get_spu_count()
+        next_track = (current_track + 1) % track_count
+        self.mediaplayer.video_set_spu(next_track)
 
 class BrowserControlBar(QtWidgets.QWidget):
     def __init__(self, browser_process):
