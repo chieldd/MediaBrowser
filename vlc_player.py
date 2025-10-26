@@ -139,11 +139,19 @@ class MainWindow(QtWidgets.QWidget):
         self.stacked = QtWidgets.QStackedLayout()
         self.root_layout.addLayout(self.stacked)
 
+        # Scroll Area for the main grid
+        self.scroll_area = QtWidgets.QScrollArea()
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setStyleSheet("QScrollArea { border: none; }")
+
         self.grid_widget = QtWidgets.QWidget()
         self.main_layout = QtWidgets.QVBoxLayout(self.grid_widget)
-        self.main_layout.setContentsMargins(0,0,0,0)
+        self.main_layout.setContentsMargins(20, 20, 20, 20)
         self.main_layout.setSpacing(30)
-        self.stacked.addWidget(self.grid_widget)
+        self.main_layout.setAlignment(QtCore.Qt.AlignTop)
+
+        self.scroll_area.setWidget(self.grid_widget)
+        self.stacked.addWidget(self.scroll_area)
 
         self.setLayout(self.root_layout)
 
@@ -207,7 +215,9 @@ class MainWindow(QtWidgets.QWidget):
         self.main_layout.addWidget(movies_label, alignment=QtCore.Qt.AlignLeft)
         # Movies rows
         video_files = [os.path.join(video_dir, f) for f in os.listdir(video_dir) if os.path.isfile(os.path.join(video_dir, f)) and f.lower().endswith(('.mp4', '.mkv', '.avi', '.mov', '.webm'))]
-        max_cols = max(1, row_width // (tile_w + 50))
+
+        # Responsive grid for movies
+        max_cols = max(1, self.grid_widget.width() // (tile_w + 30))
         m_row_tiles = []
         for idx, video_path in enumerate(video_files):
             meta = get_metadata(video_path)
@@ -343,7 +353,7 @@ class MainWindow(QtWidgets.QWidget):
         self.back_button.show()
 
     def back_to_grid(self):
-        self.stacked.setCurrentWidget(self.grid_widget)
+        self.stacked.setCurrentWidget(self.scroll_area)
         self.back_button.hide()
 
     def launch_browser(self, url):
