@@ -349,7 +349,6 @@ class MainWindow(QtWidgets.QWidget):
     def launch_browser(self, url):
         browser_executable = self.config.get("browser_executable", "chromium")
         self.browser_process = subprocess.Popen([browser_executable, "--kiosk", url])
-        QtCore.QTimer.singleShot(1500, self.hide)
         self.control_bar = BrowserControlBar(self.browser_process)
         self.control_bar.show()
 
@@ -361,7 +360,8 @@ class MainWindow(QtWidgets.QWidget):
         if self.browser_process.poll() is not None:  # Process has terminated
             self.check_timer.stop()
             self.control_bar.close()
-            self.show()
+            self.activateWindow()
+            self.back_to_grid()
 
 class VLCPlayer(QtWidgets.QWidget):
     def __init__(self, video_path, metadata_url):
@@ -429,9 +429,9 @@ class BrowserControlBar(QtWidgets.QWidget):
         layout = QtWidgets.QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
 
-        back_button = QtWidgets.QPushButton("←")
-        back_button.setFixedSize(60, 60)
-        back_button.setStyleSheet("""
+        self.back_button = QtWidgets.QPushButton("←")
+        self.back_button.setFixedSize(60, 60)
+        self.back_button.setStyleSheet("""
             QPushButton {
                 background-color: rgba(0, 0, 0, 0.5);
                 color: white;
@@ -442,10 +442,26 @@ class BrowserControlBar(QtWidgets.QWidget):
                 background-color: rgba(0, 0, 0, 0.7);
             }
         """)
-        back_button.clicked.connect(self.close_browser)
-        layout.addWidget(back_button)
+        self.back_button.clicked.connect(self.close_browser)
+        layout.addWidget(self.back_button)
         self.setLayout(layout)
         self.setGeometry(20, 20, 80, 80)
+
+        self.fade_timer = QtCore.QTimer(self)
+        self.fade_timer.setSingleShot(True)
+        self.fade_timer.timeout.connect(self.hide)
+        self.fade_timer.start(10000)
+
+        self.check_mouse_timer = QtCore.QTimer(self)
+        self.check_mouse_timer.timeout.connect(self.check_mouse_pos)
+        self.check_mouse_timer.start(100) # Check every 100ms
+
+    def check_mouse_pos(self):
+        pos = QtGui.QCursor.pos()
+        if pos.x() < 100 and pos.y() < 100:
+            if self.isHidden():
+                self.show()
+                self.fade_timer.start(10000)
 
     def close_browser(self):
         self.browser_process.kill()
