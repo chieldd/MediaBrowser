@@ -54,13 +54,12 @@ def get_movie_metadata(title, year=None):
 
 def get_tv_metadata(show, season, episode):
     tv = TV()
-    results = tv.search(show)
-    
-    # Ensure results is a list
-    if not isinstance(results, list):
-        print(f"Unexpected response from TMDb for '{show}': {results}")
+    try:
+        results = tv.search(show)["results"]
+    except Exception as e:
+        print(f"No results found for TV show '{show}'., Error: {e}")
         return None
-
+    
     print(f"TV search results for '{show}': {[r.name for r in results]}")
     if not results:
         print("No TV show results found.")
@@ -171,6 +170,7 @@ def insert_metadata_to_db(conn, file_path, metadata):
     conn.commit()
 
 def insert_show_to_db(conn, folder, title, poster):
+    print(f"Inserting show into DB: Folder='{folder}', Title='{title}', Poster='{poster}'")
     cursor = conn.cursor()
     cursor.execute('''
         INSERT OR REPLACE INTO shows (folder, title, poster)
@@ -187,6 +187,7 @@ def find_all_video_files(root_dir):
     return video_files
 
 def ingest_shows(root_dir):
+    print(f"Ingesting shows from directory: {root_dir}")
     root_dir = os.path.expanduser(root_dir)  # Expand '~' to the full path
     conn = sqlite3.connect(DB_PATH)
     conn.execute(SHOWS_TABLE_SQL)
@@ -194,11 +195,15 @@ def ingest_shows(root_dir):
     for show_folder in os.listdir(root_dir):
         show_path = os.path.join(root_dir, show_folder)
         if os.path.isdir(show_path):
-            results = tv.search(show_folder)
-            if isinstance(results, list) and results:  # Ensure results is a list and not empty
-                show_meta = results[0]
-                poster = show_meta.poster_path and f"https://image.tmdb.org/t/p/w500{show_meta.poster_path}" or None
-                insert_show_to_db(conn, show_folder, show_meta.name, poster)
+            results = tv.search(show_folder)["results"]
+            print(f"Searching for TV show: {show_folder}")
+            if not results:
+                print(f"No results found for TV show '{show_folder}'.")
+                continue
+            print(f"results type: {type(results)}")
+            show_meta = results[0]
+            poster = show_meta.poster_path and f"https://image.tmdb.org/t/p/w500{show_meta.poster_path}" or None
+            insert_show_to_db(conn, show_folder, show_meta.name, poster)
     conn.close()
 
 def main():
