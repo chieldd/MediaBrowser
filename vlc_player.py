@@ -467,7 +467,7 @@ class MediaPlayer(QtWidgets.QWidget):
         self.controls_widget = QtWidgets.QWidget()
         self.controls_widget.setStyleSheet("background-color: rgba(0, 0, 0, 0.6);")
         self.controls_layout = QtWidgets.QHBoxLayout(self.controls_widget)
-        self.controls_layout.setContentsMargins(10, 5, 10, 5)
+        self.controls_layout.setContentsMargins(0, 0, 0, 0)
         player_layout.addWidget(self.controls_widget, 0, 0, QtCore.Qt.AlignBottom)
 
         self.panel_layout.addWidget(player_container, stretch=1)
