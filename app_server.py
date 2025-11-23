@@ -4,6 +4,7 @@ import json
 import requests
 import subprocess
 import urllib.parse
+import subprocess
 
 PORT = 5000
 HOST = '0.0.0.0'
@@ -164,7 +165,43 @@ def handle_client(conn, addr):
     finally:
         conn.close()
 
+def connect_nordvpn():
+    try:
+        # Connect to NordVPN
+        print("Connecting to NordVPN...")
+        subprocess.run(["nordvpn", "connect"], check=True)
+        print("NordVPN connected successfully.")
+    except subprocess.CalledProcessError as e:
+        print(f"Error connecting to NordVPN: {e}")
+        return False
+    return True
+
+def check_nordvpn_status():
+    try:
+        # Check NordVPN connection status
+        result = subprocess.run(["nordvpn", "status"], stdout=subprocess.PIPE, text=True)
+        if "Connected" in result.stdout:
+            print("NordVPN is connected.")
+            return True
+        else:
+            print("NordVPN is not connected.")
+            return False
+    except Exception as e:
+        print(f"Error checking NordVPN status: {e}")
+        return False
+
 def main():
+    # Connect to NordVPN
+    if not connect_nordvpn():
+        print("Failed to connect to NordVPN. Exiting...")
+        return
+
+    # Verify NordVPN connection
+    if not check_nordvpn_status():
+        print("NordVPN is not connected. Exiting...")
+        return
+
+    # Start the server
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         s.bind((HOST, PORT))
