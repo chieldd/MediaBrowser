@@ -7,6 +7,42 @@ import urllib.parse
 
 PORT = 5000
 HOST = '0.0.0.0'
+QBT_PORT = 8080  # Default qBittorrent WebUI port
+QBT_USER = 'admin'
+QBT_PASS = 'QBcwkmy8s!'
+
+def get_qbt_list():
+    try:
+        session = requests.Session()
+        login_url = f"http://localhost:{QBT_PORT}/api/v2/auth/login"
+        data = {'username': QBT_USER, 'password': QBT_PASS}
+        resp = session.post(login_url, data=data)
+        resp.raise_for_status()
+        if resp.text != "Ok.":
+            return {"error": "Failed to authenticate with qBittorrent"}
+
+        torrents_url = f"http://localhost:{QBT_PORT}/api/v2/torrents/info"
+        resp = session.get(torrents_url)
+        resp.raise_for_status()
+        torrents = resp.json()
+
+        formatted_torrents = []
+        for t in torrents:
+            formatted_torrents.append({
+                "name": t.get("name"),
+                "size_bytes": t.get("size"),
+                "size_formatted": format_size(t.get("size")),
+                "progress": t.get("progress"),
+                "state": t.get("state"),
+                "seeds": t.get("num_seeds"),
+                "leechers": t.get("num_leechs"),
+                "download_speed": t.get("dlspeed"),
+                "upload_speed": t.get("upspeed")
+            })
+
+        return json.dumps(formatted_torrents)
+    except Exception as e:
+        return json.dumps({"error": str(e)})
 
 def format_size(size_bytes):
     try:
@@ -53,9 +89,9 @@ def start_download(info_hash, name):
         # Check if qbittorrent or qbittorrent-nox is available
         cmd = None
         if subprocess.run(["which", "qbittorrent"], stdout=subprocess.DEVNULL).returncode == 0:
-            cmd = ["qbittorrent", "--skip-dialog=true", magnet]
+            cmd = ["qbittorrent", "--skip-dialog=true", "--save-path=$HOME/Videos/2. Films", magnet]
         elif subprocess.run(["which", "qbittorrent-nox"], stdout=subprocess.DEVNULL).returncode == 0:
-            cmd = ["qbittorrent-nox", "--skip-dialog=true", magnet]
+            cmd = ["qbittorrent-nox", "--skip-dialog=true", "--save-path=$HOME/Videos/2. Films", magnet]
 
         if cmd:
             subprocess.Popen(cmd)
