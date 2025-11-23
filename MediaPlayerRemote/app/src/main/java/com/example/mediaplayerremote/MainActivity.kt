@@ -14,12 +14,15 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -40,15 +43,29 @@ import java.io.InputStreamReader
 import java.io.PrintWriter
 import java.net.Socket
 
-// Data model for Torrent Items
+// Data model for Search Results
 data class TorrentItem(
-    val id: String,
+    val id: String?,
     val name: String,
-    val info_hash: String,
-    val size_bytes: String,
+    val info_hash: String?,
+    val size_bytes: String?,
     val size_formatted: String,
-    val seeders: String,
-    val leechers: String
+    val seeders: String?,
+    val leechers: String?
+)
+
+// Data model for Active Torrents (from get_qbt_list)
+data class ActiveTorrentItem(
+    val hash: String,
+    val name: String,
+    val size_bytes: Any?, // Size can be int or string depending on source
+    val size_formatted: String,
+    val progress: Float?,
+    val state: String?,
+    val seeds: Int?,
+    val leechers: Int?,
+    val download_speed: Int?,
+    val upload_speed: Int?
 )
 
 class MainActivity : ComponentActivity() {
@@ -73,8 +90,55 @@ fun RemoteControlScreen(modifier: Modifier = Modifier) {
 
     var query by remember { mutableStateOf("") }
     var statusMessage by remember { mutableStateOf("") }
-    var torrentList by remember { mutableStateOf<List<TorrentItem>>(emptyList()) }
+
+    // We can switch between "Search Results" and "Active Torrents" view
+    var viewMode by remember { mutableStateOf("search") } // "search" or "active"
+
+    var searchList by remember { mutableStateOf<List<TorrentItem>>(emptyList()) }
+    var activeList by remember { mutableStateOf<List<ActiveTorrentItem>>(emptyList()) }
+
     val scope = rememberCoroutineScope()
+
+    // Dialog state for deletion
+    var showDeleteDialog by remember { mutableStateOf(false) }
+    var torrentToDelete by remember { mutableStateOf<ActiveTorrentItem?>(null) }
+
+    if (showDeleteDialog && torrentToDelete != null) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            title = { Text("Delete Torrent") },
+            text = { Text("Are you sure you want to delete '${torrentToDelete!!.name}'?") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        scope.launch {
+                            try {
+                                val response = sendCommand(serverIp, serverPort, "delete_torrent ${torrentToDelete!!.hash}")
+                                statusMessage = response
+                                // Refresh list
+                                val refreshResponse = sendCommand(serverIp, serverPort, "list_torrents")
+                                if (refreshResponse.startsWith("[")) {
+                                    val listType = object : TypeToken<List<ActiveTorrentItem>>() {}.type
+                                    activeList = Gson().fromJson(refreshResponse, listType)
+                                }
+                            } catch (e: Exception) {
+                                statusMessage = "Error: ${e.message}"
+                            }
+                            showDeleteDialog = false
+                            torrentToDelete = null
+                        }
+                    }
+                ) {
+                    Text("Delete")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
 
     Column(
         modifier = modifier
@@ -82,36 +146,83 @@ fun RemoteControlScreen(modifier: Modifier = Modifier) {
             .padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        OutlinedTextField(
-            value = query,
-            onValueChange = { query = it },
-            label = { Text("Search Movie") },
-            modifier = Modifier.fillMaxWidth()
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        Button(
-            onClick = {
-                scope.launch {
-                    statusMessage = "Searching..."
-                    try {
-                        val response = sendCommand(serverIp, serverPort, "search $query")
-                        if (response.startsWith("[")) {
-                            val listType = object : TypeToken<List<TorrentItem>>() {}.type
-                            torrentList = Gson().fromJson(response, listType)
-                            statusMessage = "Found ${torrentList.size} results"
-                        } else {
-                            statusMessage = "Error: $response"
-                            torrentList = emptyList()
-                        }
-                    } catch (e: Exception) {
-                        statusMessage = "Error: ${e.message}"
-                        torrentList = emptyList()
-                    }
-                }
-            },
-            modifier = Modifier.fillMaxWidth()
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Text("Search")
+            Button(
+                onClick = { viewMode = "search" },
+                modifier = Modifier.weight(1f).padding(end = 4.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (viewMode == "search") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary
+                )
+            ) {
+                Text("Search")
+            }
+            Button(
+                onClick = {
+                    viewMode = "active"
+                    scope.launch {
+                        statusMessage = "Fetching active torrents..."
+                        try {
+                            val response = sendCommand(serverIp, serverPort, "list_torrents")
+                            if (response.startsWith("[")) {
+                                val listType = object : TypeToken<List<ActiveTorrentItem>>() {}.type
+                                activeList = Gson().fromJson(response, listType)
+                                statusMessage = "Found ${activeList.size} active torrents"
+                            } else {
+                                statusMessage = "Error: $response"
+                                activeList = emptyList()
+                            }
+                        } catch (e: Exception) {
+                            statusMessage = "Error: ${e.message}"
+                            activeList = emptyList()
+                        }
+                    }
+                },
+                modifier = Modifier.weight(1f).padding(start = 4.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (viewMode == "active") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary
+                )
+            ) {
+                Text("Active Torrents")
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        if (viewMode == "search") {
+            OutlinedTextField(
+                value = query,
+                onValueChange = { query = it },
+                label = { Text("Search Movie") },
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Button(
+                onClick = {
+                    scope.launch {
+                        statusMessage = "Searching..."
+                        try {
+                            val response = sendCommand(serverIp, serverPort, "search $query")
+                            if (response.startsWith("[")) {
+                                val listType = object : TypeToken<List<TorrentItem>>() {}.type
+                                searchList = Gson().fromJson(response, listType)
+                                statusMessage = "Found ${searchList.size} results"
+                            } else {
+                                statusMessage = "Error: $response"
+                                searchList = emptyList()
+                            }
+                        } catch (e: Exception) {
+                            statusMessage = "Error: ${e.message}"
+                            searchList = emptyList()
+                        }
+                    }
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Search")
+            }
         }
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -122,18 +233,28 @@ fun RemoteControlScreen(modifier: Modifier = Modifier) {
             modifier = Modifier.fillMaxSize(),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            items(torrentList) { item ->
-                TorrentItemRow(item = item, onClick = {
-                    scope.launch {
-                        statusMessage = "Sending download request..."
-                        try {
-                            val response = sendCommand(serverIp, serverPort, "download ${item.info_hash} ${item.name}")
-                            statusMessage = response
-                        } catch (e: Exception) {
-                            statusMessage = "Error: ${e.message}"
+            if (viewMode == "search") {
+                items(searchList) { item ->
+                    TorrentItemRow(item = item, onClick = {
+                        scope.launch {
+                            statusMessage = "Sending download request..."
+                            try {
+                                val infoHash = item.info_hash ?: ""
+                                val response = sendCommand(serverIp, serverPort, "download $infoHash ${item.name}")
+                                statusMessage = response
+                            } catch (e: Exception) {
+                                statusMessage = "Error: ${e.message}"
+                            }
                         }
-                    }
-                })
+                    })
+                }
+            } else {
+                items(activeList) { item ->
+                    ActiveTorrentItemRow(item = item, onClick = {
+                        torrentToDelete = item
+                        showDeleteDialog = true
+                    })
+                }
             }
         }
     }
@@ -154,7 +275,37 @@ fun TorrentItemRow(item: TorrentItem, onClick: () -> Unit) {
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(text = "Size: ${item.size_formatted}", style = MaterialTheme.typography.bodyMedium)
-                Text(text = "S: ${item.seeders} / L: ${item.leechers}", style = MaterialTheme.typography.bodyMedium)
+                Text(text = "S: ${item.seeders ?: "0"} / L: ${item.leechers ?: "0"}", style = MaterialTheme.typography.bodyMedium)
+            }
+        }
+    }
+}
+
+@Composable
+fun ActiveTorrentItemRow(item: ActiveTorrentItem, onClick: () -> Unit) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(text = item.name, style = MaterialTheme.typography.bodyLarge)
+            Spacer(modifier = Modifier.height(4.dp))
+            Row(
+                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(text = "Size: ${item.size_formatted}", style = MaterialTheme.typography.bodyMedium)
+                Text(text = "${(item.progress?.times(100))?.toInt() ?: 0}%", style = MaterialTheme.typography.bodyMedium)
+            }
+            Spacer(modifier = Modifier.height(4.dp))
+            Row(
+                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(text = "State: ${item.state}", style = MaterialTheme.typography.bodySmall)
+                val dlSpeed = item.download_speed?.div(1024) ?: 0
+                Text(text = "${dlSpeed} KB/s", style = MaterialTheme.typography.bodySmall)
             }
         }
     }

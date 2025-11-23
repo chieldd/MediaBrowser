@@ -29,6 +29,7 @@ def get_qbt_list():
         formatted_torrents = []
         for t in torrents:
             formatted_torrents.append({
+                "hash": t.get("hash"),
                 "name": t.get("name"),
                 "size_bytes": t.get("size"),
                 "size_formatted": format_size(t.get("size")),
@@ -43,6 +44,24 @@ def get_qbt_list():
         return json.dumps(formatted_torrents)
     except Exception as e:
         return json.dumps({"error": str(e)})
+
+def delete_torrent(info_hash):
+    try:
+        session = requests.Session()
+        login_url = f"http://localhost:{QBT_PORT}/api/v2/auth/login"
+        data = {'username': QBT_USER, 'password': QBT_PASS}
+        resp = session.post(login_url, data=data)
+        resp.raise_for_status()
+
+        delete_url = f"http://localhost:{QBT_PORT}/api/v2/torrents/delete"
+        # deleteFiles=true to delete content too
+        data = {'hashes': info_hash, 'deleteFiles': 'true'}
+        resp = session.post(delete_url, data=data)
+        resp.raise_for_status()
+
+        return "Torrent deleted"
+    except Exception as e:
+        return f"Error deleting torrent: {str(e)}"
 
 def format_size(size_bytes):
     try:
@@ -126,6 +145,11 @@ def handle_client(conn, addr):
                     response = start_download(info_hash, name)
                 else:
                     response = "Invalid download command"
+            elif command_line == "list_torrents":
+                response = get_qbt_list()
+            elif command_line.startswith("delete_torrent "):
+                info_hash = command_line[15:]
+                response = delete_torrent(info_hash)
             else:
                 response = "Unknown command"
 
