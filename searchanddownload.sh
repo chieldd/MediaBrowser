@@ -43,16 +43,30 @@ read -p "Do you want to download it? (y/n): " answer
 
 case "$answer" in
     y|Y|yes|YES)
-    	MAGNET=$(piratebay -j info "$first_id" | jq -r '.magnet')
+        MAGNET=$(piratebay -j info "$first_id" | jq -r '.magnet')
         echo "Adding to qBittorrent..."
-        qbittorrent \
-            --save-path="$SAVE_PATH" \
-            --skip-dialog=true \
-            "$MAGNET"
+
+        # Try qBittorrent GUI first, fallback to qbittorrent-nox
+        if command -v qbittorrent >/dev/null 2>&1; then
+            qbittorrent \
+                --save-path="$SAVE_PATH" \
+                --skip-dialog=true \
+                "$MAGNET"
+        elif command -v qbittorrent-nox >/dev/null 2>&1; then
+            qbittorrent-nox \
+                --save-path="$SAVE_PATH" \
+                --skip-dialog=true \
+                "$MAGNET"
+        else
+            echo "Error: Neither qbittorrent nor qbittorrent-nox is installed."
+            exit 1
+        fi
+        
         echo "Download added."
         ;;
     *)
         echo "Cancelled."
         ;;
 esac
+
 
