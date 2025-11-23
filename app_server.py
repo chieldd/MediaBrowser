@@ -108,10 +108,11 @@ def start_download(info_hash, name):
         # Try qBittorrent
         # Check if qbittorrent or qbittorrent-nox is available
         cmd = None
+        save_path = os.path.expanduser("~/Videos/2. Films")  # Expand user's home directory
         if subprocess.run(["which", "qbittorrent"], stdout=subprocess.DEVNULL).returncode == 0:
-            cmd = ["qbittorrent", "--skip-dialog=true", "--save-path=$HOME/Videos/2. Films", magnet]
+            cmd = ["qbittorrent", "--skip-dialog=true", f"--save-path={save_path}", magnet]
         elif subprocess.run(["which", "qbittorrent-nox"], stdout=subprocess.DEVNULL).returncode == 0:
-            cmd = ["qbittorrent-nox", "--skip-dialog=true", "--save-path=$HOME/Videos/2. Films", magnet]
+            cmd = ["qbittorrent-nox", "--skip-dialog=true", f"--save-path={save_path}", magnet]
 
         if cmd:
             subprocess.Popen(cmd)
