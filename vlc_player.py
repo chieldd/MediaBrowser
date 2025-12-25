@@ -450,28 +450,29 @@ class MediaPlayer(QtWidgets.QWidget):
         self.panel_layout.addWidget(self.metadata_widget)
 
         # --- Video Player Section ---
-        player_container = QtWidgets.QWidget()
-        player_layout = QtWidgets.QGridLayout(player_container)
-        player_layout.setContentsMargins(0, 0, 0, 0)
+        self.player_container = QtWidgets.QWidget()
+        self.player_layout = QtWidgets.QGridLayout(self.player_container)
+        self.player_layout.setContentsMargins(0, 0, 0, 0)
 
         self.media_player = QMediaPlayer(None, QMediaPlayer.VideoSurface)
         self.video_widget = QVideoWidget()
         self.video_widget.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
         self.video_widget.setStyleSheet("background-color: black;")
-        player_layout.addWidget(self.video_widget, 0, 0)
+        self.player_layout.addWidget(self.video_widget, 0, 0)
 
         # Ensure the video respects the aspect ratio
         self.video_widget.setAspectRatioMode(QtCore.Qt.KeepAspectRatio)
 
         # --- Controls Overlay ---
         self.controls_widget = QtWidgets.QWidget()
-        self.controls_widget.setStyleSheet("background-color: rgba(0, 0, 0, 0.6);")
+        self.controls_widget.setStyleSheet("background-color: transparent;")
         self.controls_layout = QtWidgets.QHBoxLayout(self.controls_widget)
-        self.controls_layout.setContentsMargins(0, 0, 0, 0)
-        player_layout.addWidget(self.controls_widget, 0, 0, QtCore.Qt.AlignBottom)
+        self.controls_layout.setContentsMargins(10, 0, 10, 0)
+        self.player_layout.addWidget(self.controls_widget, 0, 0, QtCore.Qt.AlignBottom)
 
-        self.panel_layout.addWidget(player_container, stretch=1)
+        self.panel_layout.addWidget(self.player_container, stretch=1)
 
+        self.controls_layout.addStretch()
         self.play_pause_button = QtWidgets.QPushButton()
         self.play_pause_button.setIconSize(QtCore.QSize(32, 32))
         self.play_pause_button.setStyleSheet("background: transparent; border: none;")
@@ -534,6 +535,14 @@ class MediaPlayer(QtWidgets.QWidget):
         self.fullscreen_button.clicked.connect(self.toggle_full_screen)
         self.controls_layout.addWidget(self.fullscreen_button)
 
+        self.subtitles_button = QtWidgets.QPushButton()
+        self.subtitles_button.setIconSize(QtCore.QSize(32, 32))
+        self.subtitles_button.setStyleSheet("background: transparent; border: none;")
+        self.subtitles_button.setIcon(create_colored_icon("icons/subs.svg", self.icon_color))
+        self.subtitles_button.clicked.connect(self.open_subtitle_file)
+        self.controls_layout.addWidget(self.subtitles_button)
+        self.controls_layout.addStretch()
+
         self.media_player.setVideoOutput(self.video_widget)
         self.media_player.setMedia(QMediaContent(QtCore.QUrl.fromLocalFile(video_path)))
 
@@ -544,12 +553,16 @@ class MediaPlayer(QtWidgets.QWidget):
         self.video_widget.setMouseTracking(True)
         self.video_widget.installEventFilter(self)
         self.controls_widget.installEventFilter(self)
+        self.hide_controls_timer.start(3000)  # Start timer on init
 
         # Connect signals
         self.media_player.stateChanged.connect(self.update_play_pause_button)
         self.is_seeking = False
         self.media_player.positionChanged.connect(self.update_slider_position)
         self.media_player.durationChanged.connect(self.set_slider_range)
+
+    def open_subtitle_file(self):
+        print("Subtitles button clicked")
 
     def start_seek(self):
         self.is_seeking = True
@@ -617,30 +630,42 @@ class MediaPlayer(QtWidgets.QWidget):
             self.main_window.showFullScreen()
             self.main_window.nav_bar.hide()
             self.metadata_widget.hide()
-            self.panel.setFixedWidth(self.main_window.width())
+            # The main layout is now the video_layout
             self.video_layout.setContentsMargins(0, 0, 0, 0)
+            # Remove panel to allow video to fill the screen
+            self.panel.setParent(None)
+            self.video_layout.addWidget(self.player_container)
+            # Re-parent controls to the video widget for overlay effect
             self.controls_widget.setParent(self.video_widget)
             self.controls_widget.show()
+            self.controls_widget.setFixedWidth(self.video_widget.width())
             self.fullscreen_button.setIcon(create_colored_icon("icons/exitfullscreen.svg", self.icon_color))
-            self.panel_layout.setContentsMargins(0, 0, 0, 0)
         else:
-            self.controls_widget.setParent(self.panel)
-            self.panel_layout.addWidget(self.controls_widget)
-            self.main_window.showFullScreen()
+            # Add the panel back to the main layout
+            self.video_layout.removeWidget(self.player_container)
+            self.panel.setParent(self)
+            self.video_layout.addWidget(self.panel)
+            # Re-parent controls back to the player container's layout
+            self.controls_widget.setParent(self.player_container)
+            self.player_layout.addWidget(self.controls_widget, 0, 0, QtCore.Qt.AlignBottom)
             self.main_window.nav_bar.show()
             self.metadata_widget.show()
-            self.panel.setFixedWidth(int(self.main_window.width() * 0.6))
             self.video_layout.setContentsMargins(10, 10, 10, 10)
             self.fullscreen_button.setIcon(create_colored_icon("icons/fullscreen.svg", self.icon_color))
-            self.panel_layout.setContentsMargins(20, 20, 20, 20)
 
     def eventFilter(self, source, event):
+        # Resize controls to match video widget width
+        if self.is_fullscreen and isinstance(source, QtWidgets.QWidget) and source == self.video_widget:
+            if event.type() == QtCore.QEvent.Resize:
+                self.controls_widget.setFixedWidth(self.video_widget.width())
+                self.controls_widget.move(0, self.video_widget.height() - self.controls_widget.height())
         if source in [self.video_widget, self.controls_widget]:
             if event.type() == QtCore.QEvent.MouseMove:
                 self.show_controls()
                 self.hide_controls_timer.start(5000)
             elif event.type() == QtCore.QEvent.Enter:
                 self.show_controls()
+                self.hide_controls_timer.start(3000)
 
         return super().eventFilter(source, event)
 
